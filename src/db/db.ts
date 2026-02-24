@@ -1,5 +1,27 @@
 import { v4 as uuidv4 } from "uuid";
 
+export type MemoryTier = "short" | "long";
+
+export type MemoryRecord = {
+  id: string;
+  userId: string;
+  tier: MemoryTier;
+  content: string;
+  importance: number;
+  source: string | null;
+  created_at: number;
+  updated_at: number | null;
+};
+
+export type CreateMemoryInput = {
+  id?: string;
+  userId: string;
+  tier: MemoryTier;
+  content: string;
+  importance?: number;
+  source?: string;
+};
+
 export class DB {
   private static instance: Promise<DB> | null = null;
   private env!: Env;
@@ -44,14 +66,7 @@ export class DB {
     ).run();
   }
 
-  async createMemory(params: {
-    id?: string;
-    userId: string;
-    tier: "short" | "long";
-    content: string;
-    importance?: number;
-    source?: string;
-  }) {
+  async createMemory(params: CreateMemoryInput) {
     const id = params.id ?? `${params.userId}:${params.tier}:${uuidv4()}`;
     const now = Date.now();
 
@@ -74,25 +89,157 @@ export class DB {
     return id;
   }
 
-  async getMemories(userId: string, tier: "short" | "long") {
+  async batchCreateMemories(memories: CreateMemoryInput[]): Promise<string[]> {
+    const ids: string[] = [];
+
+    for (const memory of memories) {
+      const id = await this.createMemory(memory);
+      ids.push(id);
+    }
+
+    return ids;
+  }
+
+  async getMemories(
+    userId: string,
+    tier: MemoryTier,
+    limit: number = 50
+  ): Promise<MemoryRecord[]> {
     const result = await this.env.DB.prepare(
-      `SELECT id, content, created_at, updated_at, importance
+      `SELECT id, userId, tier, content, importance, source, created_at, updated_at
        FROM memories
        WHERE userId = ? AND tier = ?
-       ORDER BY created_at DESC`
+       ORDER BY created_at DESC
+       LIMIT ?`
     )
-      .bind(userId, tier)
-      .all();
+      .bind(userId, tier, limit)
+      .all<MemoryRecord>();
 
-    return result.results;
+    return result.results ?? [];
+  }
+
+  async getAllMemories(
+    userId: string,
+    tier?: MemoryTier
+  ): Promise<MemoryRecord[]> {
+    let result;
+
+    if (tier) {
+      result = await this.env.DB.prepare(
+        `SELECT id, userId, tier, content, importance, source, created_at, updated_at
+         FROM memories
+         WHERE userId = ? AND tier = ?
+         ORDER BY created_at DESC`
+      )
+        .bind(userId, tier)
+        .all<MemoryRecord>();
+    } else {
+      result = await this.env.DB.prepare(
+        `SELECT id, userId, tier, content, importance, source, created_at, updated_at
+         FROM memories
+         WHERE userId = ?
+         ORDER BY created_at DESC`
+      )
+        .bind(userId)
+        .all<MemoryRecord>();
+    }
+
+    return result.results ?? [];
+  }
+
+  async getMemoryById(
+    memoryId: string,
+    userId: string
+  ): Promise<MemoryRecord | null> {
+    const result = await this.env.DB.prepare(
+      `SELECT id, userId, tier, content, importance, source, created_at, updated_at
+       FROM memories
+       WHERE id = ? AND userId = ?
+       LIMIT 1`
+    )
+      .bind(memoryId, userId)
+      .all<MemoryRecord>();
+
+    return result.results?.[0] ?? null;
+  }
+
+  async getMemoryStats(userId: string): Promise<{
+    short: number;
+    long: number;
+    total: number;
+  }> {
+    const result = await this.env.DB.prepare(
+      `SELECT tier, COUNT(*) as count
+       FROM memories
+       WHERE userId = ?
+       GROUP BY tier`
+    )
+      .bind(userId)
+      .all<{ tier: string; count: number }>();
+
+    let short = 0;
+    let long = 0;
+
+    for (const row of result.results ?? []) {
+      const count = Number(row.count) || 0;
+      if (row.tier === "short") short = count;
+      if (row.tier === "long") long = count;
+    }
+
+    return {
+      short,
+      long,
+      total: short + long,
+    };
+  }
+
+  async getMemoryCount(userId: string, tier?: MemoryTier): Promise<number> {
+    const result = tier
+      ? await this.env.DB.prepare(
+        `SELECT COUNT(*) as count
+         FROM memories
+         WHERE userId = ? AND tier = ?`
+      )
+        .bind(userId, tier)
+        .all<{ count: number }>()
+      : await this.env.DB.prepare(
+        `SELECT COUNT(*) as count
+         FROM memories
+         WHERE userId = ?`
+      )
+        .bind(userId)
+        .all<{ count: number }>();
+
+    const value = result.results?.[0]?.count ?? 0;
+    return Number(value) || 0;
   }
 
   async deleteMemory(memoryId: string, userId: string) {
-    await this.env.DB.prepare(
+    const result = await this.env.DB.prepare(
       "DELETE FROM memories WHERE id = ? AND userId = ?"
     )
       .bind(memoryId, userId)
       .run();
+
+    return (result.meta?.changes ?? 0) > 0;
+  }
+
+  async clearAllMemories(userId: string, tier?: MemoryTier): Promise<number> {
+    const result = tier
+      ? await this.env.DB.prepare(
+        `DELETE FROM memories
+         WHERE userId = ? AND tier = ?`
+      )
+        .bind(userId, tier)
+        .run()
+      : await this.env.DB.prepare(
+        `DELETE FROM memories
+         WHERE userId = ?`
+      )
+        .bind(userId)
+        .run();
+
+    return result.meta?.changes ?? 0;
   }
 
   async updateMemory(
