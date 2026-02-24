@@ -28,7 +28,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_write",
       {
         description:
-          "Store durable user information in long-term memory. Use only for stable facts or preferences.",
+          "Store durable user information in persistent memory with optional metadata. Use this tool when you need to save important facts, preferences, settings, or context about the user that should be retained across conversations. Supports both short-term (temporary, session-based) and long-term (persistent) memory tiers. Include an importance score (0-1) to indicate how critical the memory is for future interactions.",
         inputSchema: {
           content: z.string().describe("The information to store"),
           tier: z.enum(["short", "long"]).describe("Memory tier"),
@@ -86,7 +86,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_batch_write",
       {
         description:
-          "Store multiple memories at once. More efficient than multiple single writes.",
+          "Efficiently store multiple memories in a single operation. Use this tool when you need to save 2 or more related pieces of information simultaneously (e.g., extracting and storing multiple facts from a conversation, importing bulk information). This is significantly more efficient than calling memory_write repeatedly. Supports up to 50 memories per batch, each with independent tier and importance settings.",
         inputSchema: {
           memories: z.array(z.object({
             content: z.string().describe("The information to store"),
@@ -169,7 +169,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_search",
       {
         description:
-          "Search relevant information from memory.",
+          "Search for relevant memories using semantic similarity to find contextually related information. Use this tool to retrieve memories that match a query's meaning rather than exact keywords. Useful for answering questions about what you know about a user, finding related context, or retrieving relevant facts without knowing exact wording. Returns ranked results with relevance scores. Specify tier to search only short-term or long-term memories.",
         inputSchema: {
           query: z.string().describe("Search query"),
           tier: z.enum(["short", "long"]).describe("Memory tier"),
@@ -237,7 +237,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_list",
       {
         description:
-          "List all stored memories for the user.",
+          "Retrieve a list of all stored memories with optional filtering by tier. Use this tool to browse or audit the user's stored memories, see what information is available, or get a complete inventory of short-term vs long-term memories. Returns memories with creation dates and content previews. Optionally filter by tier (short or long) to view only one memory category.",
         inputSchema: {
           tier: z.enum(["short", "long"]).optional().describe("Filter by tier (optional)"),
         },
@@ -308,7 +308,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_update",
       {
         description:
-          "Update an existing memory by ID.",
+          "Update the content of an existing memory while preserving its ID and metadata. Use this tool to correct, clarify, or enhance previously stored information. The memory vector embeddings are automatically recalculated to maintain semantic search accuracy. Useful for refining memories based on new information or correcting inaccuracies.",
         inputSchema: {
           memoryId: z.string().describe("ID of the memory to update"),
           content: z.string().describe("New content for the memory"),
@@ -372,7 +372,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_delete",
       {
         description:
-          "Delete a specific memory by ID.",
+          "Permanently delete a specific memory by its ID. Use this tool to remove outdated, incorrect, or irrelevant information from memory. The deletion is permanent and removes the memory from both the database and vector store. Always obtain the memory ID from memory_list or memory_search before deleting.",
         inputSchema: {
           memoryId: z.string().describe("ID of the memory to delete"),
         },
@@ -433,7 +433,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_clear",
       {
         description:
-          "Clear all memories, optionally filtered by tier. Use with caution.",
+          "Batch delete all memories, optionally filtered by tier. Use this tool for cleanup operations when you need to remove all stored memories or reset one memory tier. This operation is permanent and cannot be undone. Requires explicit confirmation (confirm=true) to prevent accidental data loss. Useful for memory resets, tier-specific cleanup, or managing memory storage limits.",
         inputSchema: {
           tier: z.enum(["short", "long"]).optional().describe("Only clear memories of this tier (optional)"),
           confirm: z.boolean().describe("Must be true to confirm deletion"),
@@ -508,7 +508,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_stats",
       {
         description:
-          "Get statistics about stored memories.",
+          "Retrieve statistics about the user's stored memories including total count and breakdown by tier (short-term vs long-term). Use this tool to monitor memory usage, understand the distribution of stored information, or check memory storage status. Returns counts for total memories, short-term memories, and long-term memories.",
         inputSchema: {},
       },
       async () => {
@@ -557,7 +557,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_summarize",
       {
         description:
-          "Use AI to summarize all memories or a specific tier.",
+          "Use AI to generate a concise summary of stored memories. Use this tool to condense large amounts of information into key points, understand the main themes in the user's memories, or create executive summaries of stored context. Optionally filter by tier to summarize only short-term or long-term memories. Helpful for reviewing what you know about a user or creating context summaries.",
         inputSchema: {
           tier: z.enum(["short", "long"]).optional().describe("Memory tier to summarize (optional)"),
         },
@@ -637,7 +637,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_extract_entities",
       {
         description:
-          "Use AI to extract named entities (people, places, dates, etc.) from memories.",
+          "Use AI-powered named entity recognition to extract structured information from memories including people, places, organizations, dates, and other important entities. Use this tool to automatically categorize and organize the semantic content of stored memories, identify key individuals or locations mentioned, or create structured knowledge from unstructured memory text. Returns entities organized by category as JSON.",
         inputSchema: {
           tier: z.enum(["short", "long"]).optional().describe("Memory tier to analyze (optional)"),
         },
@@ -717,7 +717,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
       "memory_ask",
       {
         description:
-          "Ask a question about stored memories using AI with RAG context.",
+          "Ask natural language questions about stored memories using AI with Retrieval-Augmented Generation (RAG). The system automatically searches relevant memories and uses them as context to answer questions accurately. Use this tool to query information from memory without needing exact knowledge of what's stored, get answers based on user context, or perform semantic reasoning over stored information. Optionally specify memory tier to search.",
         inputSchema: {
           question: z.string().describe("Question to ask about memories"),
           tier: z.enum(["short", "long"]).optional().describe("Memory tier to search (optional)"),
