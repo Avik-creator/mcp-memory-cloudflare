@@ -25,7 +25,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.write",
+      "memory_write",
       {
         description:
           "Store durable user information in long-term memory. Use only for stable facts or preferences.",
@@ -83,7 +83,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.batch_write",
+      "memory_batch_write",
       {
         description:
           "Store multiple memories at once. More efficient than multiple single writes.",
@@ -166,7 +166,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.search",
+      "memory_search",
       {
         description:
           "Search relevant information from memory.",
@@ -234,7 +234,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.list",
+      "memory_list",
       {
         description:
           "List all stored memories for the user.",
@@ -305,7 +305,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.update",
+      "memory_update",
       {
         description:
           "Update an existing memory by ID.",
@@ -369,7 +369,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.delete",
+      "memory_delete",
       {
         description:
           "Delete a specific memory by ID.",
@@ -430,7 +430,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.clear",
+      "memory_clear",
       {
         description:
           "Clear all memories, optionally filtered by tier. Use with caution.",
@@ -505,7 +505,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.stats",
+      "memory_stats",
       {
         description:
           "Get statistics about stored memories.",
@@ -554,7 +554,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.summarize",
+      "memory_summarize",
       {
         description:
           "Use AI to summarize all memories or a specific tier.",
@@ -634,7 +634,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.extract_entities",
+      "memory_extract_entities",
       {
         description:
           "Use AI to extract named entities (people, places, dates, etc.) from memories.",
@@ -714,7 +714,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
     ===================================== */
 
     server.registerTool(
-      "memory.ask",
+      "memory_ask",
       {
         description:
           "Ask a question about stored memories using AI with RAG context.",
