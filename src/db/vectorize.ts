@@ -1,25 +1,48 @@
 import { v4 as uuidv4 } from "uuid";
 
-const DUPLICATE_THRESHOLD = 0.7;
-const SEARCH_THRESHOLD = 0.65;         // usable relevance
-const RECENCY_HALF_LIFE = 1000 * 60 * 60 * 24 * 3; // 3 days
+/* ================================
+   CONFIG
+================================ */
 
-type MemoryTier = "short" | "long";
+export type MemoryTier = "short" | "long";
+
+export type MemoryConfig = {
+  duplicateThreshold: number;
+  searchThreshold: number;
+  recencyWeight: number;
+  recencyHalfLifeMs: number;
+};
+
+const DEFAULT_CONFIG: MemoryConfig = {
+  duplicateThreshold: 0.85,
+  searchThreshold: 0.65,
+  recencyWeight: 0.1,
+  recencyHalfLifeMs: 1000 * 60 * 60 * 24 * 3, // 3 days
+};
+
+/* ================================
+   TYPES
+================================ */
 
 type MemoryMetadata = {
   userId: string;
+  tier: MemoryTier;
   content: string;
   createdAt: number;
   updatedAt?: number;
-  importance?: number;   // optional future scoring
-  source?: string;       // chat/tool/system
+  importance?: number;
+  source?: string;
 };
 
-type MemoryResult = {
+export type MemoryResult = {
   id: string;
   content: string;
   score: number;
 };
+
+/* ================================
+   EMBEDDINGS
+================================ */
 
 export async function generateEmbeddings(
   texts: string | string[],
@@ -39,65 +62,80 @@ export async function generateEmbeddings(
   return res.data;
 }
 
+/* ================================
+   STORE MEMORY
+================================ */
+
 export async function storeMemory(
   content: string,
   userId: string,
   tier: MemoryTier,
-  env: Env
+  env: Env,
+  config: MemoryConfig = DEFAULT_CONFIG
 ): Promise<string> {
   const namespace = `${userId}:${tier}`;
+  const memoryId = `${userId}:${tier}:${uuidv4()}`;
+
   const [vector] = await generateEmbeddings(content, env);
+  if (!vector) throw new Error("Invalid embedding");
 
-  if (!vector) throw new Error("Invalid embedding vector");
-
-  // Check near-duplicate
+  // dedupe check
   const similar = await env.VECTORIZE.query(vector, {
     namespace,
     topK: 1,
     returnMetadata: true,
   });
 
-  const topMatch = similar.matches?.[0];
+  const top = similar.matches?.[0];
 
-  if (topMatch && (topMatch.score ?? 0) >= DUPLICATE_THRESHOLD) {
-    // Update instead of skipping
+  if (top && (top.score ?? 0) >= config.duplicateThreshold) {
     await updateMemoryVector(
-      topMatch.id,
+      top.id,
       content,
       userId,
       tier,
       env,
-      topMatch.metadata as MemoryMetadata
+      top.metadata as MemoryMetadata,
+      config
     );
-    return topMatch.id;
+    return top.id;
   }
-
-  const memoryID = uuidv4();
 
   const metadata: MemoryMetadata = {
     userId,
+    tier,
     content,
     createdAt: Date.now(),
   };
 
-  await env.VECTORIZE.insert([
-    {
-      id: memoryID,
-      values: vector,
-      namespace,
-      metadata,
-    },
-  ]);
+  try {
+    await env.VECTORIZE.insert([
+      {
+        id: memoryId,
+        values: vector,
+        namespace,
+        metadata,
+      },
+    ]);
+  } catch (err) {
+    console.error("Vector insert failed", { userId, tier, err });
+    throw err;
+  }
 
-  return memoryID;
+  return memoryId;
 }
+
+/* ================================
+   SEARCH
+================================ */
 
 export async function searchMemories(
   query: string,
   userId: string,
   tier: MemoryTier,
   env: Env,
-  topK: number = 10
+  topK: number = 10,
+  config: MemoryConfig = DEFAULT_CONFIG
 ): Promise<MemoryResult[]> {
   const namespace = `${userId}:${tier}`;
   const [queryVector] = await generateEmbeddings(query, env);
@@ -117,17 +155,18 @@ export async function searchMemories(
   const memories = results.matches
     .map(match => {
       const meta = match.metadata as MemoryMetadata | undefined;
-      const semanticScore = match.score ?? 0;
+      const semantic = match.score ?? 0;
 
-      if (!meta?.content || semanticScore < SEARCH_THRESHOLD) {
+      if (!meta?.content || semantic < config.searchThreshold) {
         return null;
       }
 
-      // Recency boost (exponential decay)
       const age = now - meta.createdAt;
-      const recencyBoost = Math.exp(-age / RECENCY_HALF_LIFE);
+      const recency = Math.exp(-age / config.recencyHalfLifeMs);
 
-      const finalScore = semanticScore + recencyBoost * 0.15;
+      // multiplicative recency
+      const finalScore =
+        semantic * (1 + recency * config.recencyWeight);
 
       return {
         id: match.id,
@@ -138,9 +177,12 @@ export async function searchMemories(
     .filter(Boolean) as MemoryResult[];
 
   memories.sort((a, b) => b.score - a.score);
-
   return memories;
 }
+
+/* ================================
+   UPDATE
+================================ */
 
 export async function updateMemoryVector(
   memoryId: string,
@@ -148,42 +190,50 @@ export async function updateMemoryVector(
   userId: string,
   tier: MemoryTier,
   env: Env,
-  previousMetadata?: MemoryMetadata
+  previous?: MemoryMetadata,
+  config: MemoryConfig = DEFAULT_CONFIG
 ): Promise<void> {
   const namespace = `${userId}:${tier}`;
-  const [newVector] = await generateEmbeddings(newContent, env);
-
-  if (!newVector) throw new Error("Invalid embedding vector");
+  const [vector] = await generateEmbeddings(newContent, env);
+  if (!vector) throw new Error("Invalid embedding");
 
   const metadata: MemoryMetadata = {
     userId,
+    tier,
     content: newContent,
-    createdAt: previousMetadata?.createdAt ?? Date.now(),
+    createdAt: previous?.createdAt ?? Date.now(),
     updatedAt: Date.now(),
-    importance: previousMetadata?.importance,
-    source: previousMetadata?.source,
+    importance: previous?.importance,
+    source: previous?.source,
   };
 
-  await env.VECTORIZE.upsert([
-    {
-      id: memoryId,
-      values: newVector,
-      namespace,
-      metadata,
-    },
-  ]);
+  try {
+    await env.VECTORIZE.upsert([
+      {
+        id: memoryId,
+        values: vector,
+        namespace,
+        metadata,
+      },
+    ]);
+  } catch (err) {
+    console.error("Vector upsert failed", { memoryId, err });
+    throw err;
+  }
 }
+
+/* ================================
+   DELETE
+================================ */
 
 export async function deleteMemory(
   memoryId: string,
-  userId: string,
-  tier: MemoryTier,
   env: Env
 ): Promise<void> {
   try {
     await env.VECTORIZE.deleteByIds([memoryId]);
-    console.log(`Vector ID ${memoryId} deleted from Vectorize namespace ${userId}`);
-  } catch (error) {
-    console.error(`Error deleting vector ID ${memoryId} from Vectorize namespace ${userId}:`, error);
+  } catch (err) {
+    console.error("Vector delete failed", { memoryId, err });
+    throw err;
   }
 }
