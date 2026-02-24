@@ -10,8 +10,13 @@ export class DB {
     if (!this.instance) {
       this.instance = (async () => {
         const db = new DB();
-        await db.init(env);
-        return db;
+        try {
+          await db.init(env);
+          return db;
+        } catch (error) {
+          this.instance = null;
+          throw error;
+        }
       })();
     }
     return this.instance;
@@ -20,21 +25,23 @@ export class DB {
   private async init(env: Env) {
     this.env = env;
 
-    await this.env.DB.exec(`
-      CREATE TABLE IF NOT EXISTS memories (
-        id TEXT PRIMARY KEY,
-        userId TEXT NOT NULL,
-        tier TEXT NOT NULL,
-        content TEXT NOT NULL,
-        importance REAL DEFAULT 0,
-        source TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER
-      );
+    await this.env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS memories (
+         id TEXT PRIMARY KEY,
+         userId TEXT NOT NULL,
+         tier TEXT NOT NULL,
+         content TEXT NOT NULL,
+         importance REAL DEFAULT 0,
+         source TEXT,
+         created_at INTEGER NOT NULL,
+         updated_at INTEGER
+       )`
+    ).run();
 
-      CREATE INDEX IF NOT EXISTS idx_memories_user_tier
-      ON memories (userId, tier);
-    `);
+    await this.env.DB.prepare(
+      `CREATE INDEX IF NOT EXISTS idx_memories_user_tier
+       ON memories (userId, tier)`
+    ).run();
   }
 
   async createMemory(params: {
