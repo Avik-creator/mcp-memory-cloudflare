@@ -1,11 +1,8 @@
 import { Hono } from "hono";
 import { MyMCP } from "./mcp/mcp";
-import { Env } from "hono";
 import { DB } from "./db/db";
 
-const app = new Hono<{
-  Bindings: Env;
-}>();
+const app = new Hono<{ Bindings: Env }>();
 
 app.get("/", (c) => c.text("Hello, World!"));
 app.use("*", async (c, next) => {
