@@ -30,7 +30,10 @@
       "index_name": "mcp-memory-vectorize",
       "remote": true
     }
-  ]
+  ],
+  "ai": {
+    "binding": "AI",
+  }
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
