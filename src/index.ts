@@ -9,7 +9,7 @@ const app = new Hono<{
 
 app.get("/", (c) => c.text("Hello, World!"));
 app.use("*", async (c, next) => {
-   await DB.getInstance(c.env);
+  await DB.getInstance(c.env);
   await next();
 })
 
@@ -69,7 +69,7 @@ app.put("/:userId/memories/:memoryId", async (c) => {
 
   try {
     // 1. Update in D1
-   
+
     console.log(`Updated memory ${memoryId} for user ${userId} in D1.`);
 
     // 2. Update vector in Vectorize

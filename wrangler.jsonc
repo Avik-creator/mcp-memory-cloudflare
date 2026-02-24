@@ -2,7 +2,15 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mcp-memory-cloudflare",
   "main": "src/index.ts",
-  "compatibility_date": "2026-02-24"
+  "compatibility_date": "2026-02-24",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mcp-memory-db",
+      "database_id": "5b535412-93f7-4026-9be2-62b0a0aa1915",
+      "remote": true
+    }
+  ]
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
