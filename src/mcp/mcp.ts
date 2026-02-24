@@ -1,6 +1,5 @@
-import { Env } from "hono";
 import { z } from "zod";
-import { McpAgent} from "agents/mcp";
+import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 type MCPProps = {
@@ -21,7 +20,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
         description: "This tool stores important user information in a persistent memory layer.",
         inputSchema: { thingToRemember: z.string().describe("The information to store in memory") },
       },
-      async ({ thingToRemember }: { thingToRemember: string }) => { 
+      async ({ thingToRemember }: { thingToRemember: string }) => {
         try {
           return {
             content: [{ type: "text" as const, text: `Remembered: ${thingToRemember}` }],
@@ -41,7 +40,7 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
         inputSchema: { query: z.string().describe("The search query to find relevant memories") },
       },
       async ({ query }: { query: string }) => {
-        try{
+        try {
           console.log("Searching memory for query:", query);
 
           return {

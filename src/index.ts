@@ -15,8 +15,9 @@ app.get("/:userId/memories", async (c) => {
   const userId = c.req.param("userId");
 
   try {
+    const memories = await (await DB.getInstance(c.env)).getAllMemories(userId);
 
-    return c.json({ success: true });
+    return c.json({ success: true, memories });
   } catch (error) {
     console.error("Error retrieving memories:", error);
     return c.json({ success: false, error: "Failed to retrieve memories" }, 500);
@@ -31,6 +32,7 @@ app.delete("/:userId/memories/:memoryId", async (c) => {
   try {
     // 1. Delete from D1
     console.log(`Deleted memory ${memoryId} for user ${userId} from D1.`);
+    await (await DB.getInstance(c.env)).deleteMemory(memoryId, userId);
 
     // 2. Delete from Vectorize index
     try {
@@ -39,7 +41,7 @@ app.delete("/:userId/memories/:memoryId", async (c) => {
       console.error(`Failed to delete vector ${memoryId} for user ${userId} from Vectorize:`, vectorError);
     }
 
-    return c.json({ success: true });
+    return c.json({ success: true, message: "Memory deleted successfully" });
   } catch (error) {
     console.error(`Error deleting memory ${memoryId} (D1 primary) for user ${userId}:`, error);
     return c.json({ success: false, error: "Failed to delete memory" }, 500);
@@ -66,7 +68,7 @@ app.put("/:userId/memories/:memoryId", async (c) => {
 
   try {
     // 1. Update in D1
-
+    await (await DB.getInstance(c.env)).updateMemory(memoryId, userId, updatedContent);
     console.log(`Updated memory ${memoryId} for user ${userId} in D1.`);
 
     // 2. Update vector in Vectorize
@@ -77,7 +79,7 @@ app.put("/:userId/memories/:memoryId", async (c) => {
       console.error(`Failed to update vector ${memoryId} for user ${userId} in Vectorize:`, vectorError);
     }
 
-    return c.json({ success: true });
+    return c.json({ success: true, message: "Memory updated successfully" });
   } catch (error: any) {
     console.error(`Error updating memory ${memoryId} for user ${userId}:`, error);
     const errorMessage = error.message || "Failed to update memory";
