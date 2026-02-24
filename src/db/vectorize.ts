@@ -71,15 +71,15 @@ export async function storeMemory(
   userId: string,
   tier: MemoryTier,
   env: Env,
+  memoryId?: string,
   config: MemoryConfig = DEFAULT_CONFIG
 ): Promise<string> {
   const namespace = `${userId}:${tier}`;
-  const memoryId = `${userId}:${tier}:${uuidv4()}`;
+  const id = memoryId ?? `${userId}:${tier}:${uuidv4()}`;
 
   const [vector] = await generateEmbeddings(content, env);
   if (!vector) throw new Error("Invalid embedding");
 
-  // dedupe check
   const similar = await env.VECTORIZE.query(vector, {
     namespace,
     topK: 1,
@@ -89,42 +89,25 @@ export async function storeMemory(
   const top = similar.matches?.[0];
 
   if (top && (top.score ?? 0) >= config.duplicateThreshold) {
-    await updateMemoryVector(
-      top.id,
-      content,
-      userId,
-      tier,
-      env,
-      top.metadata as MemoryMetadata,
-      config
-    );
     return top.id;
   }
 
-  const metadata: MemoryMetadata = {
-    userId,
-    tier,
-    content,
-    createdAt: Date.now(),
-  };
-
-  try {
-    await env.VECTORIZE.insert([
-      {
-        id: memoryId,
-        values: vector,
-        namespace,
-        metadata,
+  await env.VECTORIZE.insert([
+    {
+      id,
+      values: vector,
+      namespace,
+      metadata: {
+        userId,
+        tier,
+        content,
+        createdAt: Date.now(),
       },
-    ]);
-  } catch (err) {
-    console.error("Vector insert failed", { userId, tier, err });
-    throw err;
-  }
+    },
+  ]);
 
-  return memoryId;
+  return id;
 }
-
 /* ================================
    SEARCH
 ================================ */

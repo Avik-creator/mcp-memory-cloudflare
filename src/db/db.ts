@@ -6,7 +6,6 @@ export class DB {
 
   private constructor() { }
 
-  // ---- singleton entry ----
   static getInstance(env: Env): Promise<DB> {
     if (!this.instance) {
       this.instance = (async () => {
@@ -18,46 +17,67 @@ export class DB {
     return this.instance;
   }
 
-  // ---- init runs once per isolate ----
   private async init(env: Env) {
     this.env = env;
-
-    console.log("Initializing D1 schema…");
 
     await this.env.DB.exec(`
       CREATE TABLE IF NOT EXISTS memories (
         id TEXT PRIMARY KEY,
         userId TEXT NOT NULL,
+        tier TEXT NOT NULL,
         content TEXT NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+        importance REAL DEFAULT 0,
+        source TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER
+      );
 
-    console.log("D1 ready");
+      CREATE INDEX IF NOT EXISTS idx_memories_user_tier
+      ON memories (userId, tier);
+    `);
   }
 
-  // -----------------------------
-  // methods
-  // -----------------------------
+  async createMemory(params: {
+    id?: string;
+    userId: string;
+    tier: "short" | "long";
+    content: string;
+    importance?: number;
+    source?: string;
+  }) {
+    const id = params.id ?? `${params.userId}:${params.tier}:${uuidv4()}`;
+    const now = Date.now();
 
-  async storeMemory(content: string, userId: string, memoryId: string = uuidv4()) {
     await this.env.DB.prepare(
-      "INSERT INTO memories (id, userId, content) VALUES (?, ?, ?)"
+      `INSERT INTO memories
+       (id, userId, tier, content, importance, source, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(memoryId, userId, content)
+      .bind(
+        id,
+        params.userId,
+        params.tier,
+        params.content,
+        params.importance ?? 0,
+        params.source ?? null,
+        now
+      )
       .run();
 
-    return memoryId;
+    return id;
   }
 
-  async getAllMemories(userId: string) {
+  async getMemories(userId: string, tier: "short" | "long") {
     const result = await this.env.DB.prepare(
-      "SELECT id, content FROM memories WHERE userId = ? ORDER BY created_at DESC"
+      `SELECT id, content, created_at, updated_at, importance
+       FROM memories
+       WHERE userId = ? AND tier = ?
+       ORDER BY created_at DESC`
     )
-      .bind(userId)
+      .bind(userId, tier)
       .all();
 
-    return result.results as Array<{ id: string; content: string }>;
+    return result.results;
   }
 
   async deleteMemory(memoryId: string, userId: string) {
@@ -68,15 +88,23 @@ export class DB {
       .run();
   }
 
-  async updateMemory(memoryId: string, userId: string, newContent: string) {
+  async updateMemory(
+    memoryId: string,
+    userId: string,
+    newContent: string
+  ) {
+    const now = Date.now();
+
     const result = await this.env.DB.prepare(
-      "UPDATE memories SET content = ? WHERE id = ? AND userId = ?"
+      `UPDATE memories
+       SET content = ?, updated_at = ?
+       WHERE id = ? AND userId = ?`
     )
-      .bind(newContent, memoryId, userId)
+      .bind(newContent, now, memoryId, userId)
       .run();
 
     if (!result.meta || result.meta.changes === 0) {
-      throw new Error("Memory not found or unchanged");
+      throw new Error("Memory not found");
     }
   }
 }
