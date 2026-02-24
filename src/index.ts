@@ -40,12 +40,17 @@ export class MyMCP extends McpAgent<Env, {}, MCPProps> {
         description: "This tool retrieves information from the persistent memory layer based on a search query.",
         inputSchema: { query: z.string().describe("The search query to find relevant memories") },
       },
-      async ({informationToSearch}: { informationToSearch: string }) => {
+      async ({ query }: { query: string }) => {
         try{
-          console.log("Searching memory for query:", informationToSearch);
+          console.log("Searching memory for query:", query);
 
           return {
-            
+            content: [{ type: "text" as const, text: `Search results for: ${query}` }],
+          };
+        } catch (error) {
+          console.error("Error searching memory:", error);
+          return {
+            content: [{ type: "text" as const, text: "Failed to search memory: " + String(error) }],
           }
         }
       }
